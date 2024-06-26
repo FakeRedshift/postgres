@@ -603,9 +603,9 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 /* ordinary key words in alphabetical order */
 %token <keyword> ABORT_P ABSOLUTE_P ACCESS ACTION ADD_P ADMIN AFTER
 	AGGREGATE ALL ALSO ALTER ALWAYS ANALYSE ANALYZE AND ANY ARRAY AS ASC
-	ASSERTION ASSIGNMENT ASYMMETRIC AT ATTACH ATTRIBUTE AUTHORIZATION
+	ASSERTION ASSIGNMENT ASYMMETRIC AT ATTACH ATTRIBUTE AUTHORIZATION AUTO
 
-	BACKWARD BEFORE BEGIN_P BETWEEN BIGINT BINARY BIT
+	BACKUP BACKWARD BEFORE BEGIN_P BETWEEN BIGINT BINARY BIT
 	BOOLEAN_P BOTH BY
 
 	CACHE CALLED CASCADE CASCADED CASE CAST CATALOG_P CHAIN CHAR_P
@@ -619,10 +619,10 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
 	DATA_P DATABASE DAY_P DEALLOCATE DEC DECIMAL_P DECLARE DEFAULT DEFAULTS
 	DEFERRABLE DEFERRED DEFINER DELETE_P DELIMITER DELIMITERS DEPENDS DESC
-	DETACH DICTIONARY DISABLE_P DISCARD DISTINCT DO DOCUMENT_P DOMAIN_P
+	DETACH DICTIONARY DISABLE_P DISCARD DISTINCT DISTSTYLE DO DOCUMENT_P DOMAIN_P
 	DOUBLE_P DROP
 
-	EACH ELSE ENABLE_P ENCODING ENCRYPTED END_P ENUM_P ESCAPE EVENT EXCEPT
+	EACH ELSE ENABLE_P ENCODING ENCRYPTED END_P ENUM_P ESCAPE EVEN EVENT EXCEPT
 	EXCLUDE EXCLUDING EXCLUSIVE EXECUTE EXISTS EXPLAIN
 	EXTENSION EXTERNAL EXTRACT
 
@@ -668,7 +668,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
 	SAVEPOINT SCHEMA SCHEMAS SCROLL SEARCH SECOND_P SECURITY SELECT SEQUENCE SEQUENCES
 	SERIALIZABLE SERVER SESSION SESSION_USER SET SETS SETOF SHARE SHOW
-	SIMILAR SIMPLE SKIP SMALLINT SNAPSHOT SOME SQL_P STABLE STANDALONE_P
+	SIMILAR SIMPLE SKIP SMALLINT SNAPSHOT SOME SORTKEY SQL_P STABLE STANDALONE_P
 	START STATEMENT STATISTICS STDIN STDOUT STORAGE STRICT_P STRIP_P
 	SUBSCRIPTION SUBSTRING SYMMETRIC SYSID SYSTEM_P
 
@@ -3920,17 +3920,17 @@ opt_with_data:
  *****************************************************************************/
 
 CreateMatViewStmt:
-		CREATE OptNoLog MATERIALIZED VIEW create_mv_target AS SelectStmt opt_with_data
+		CREATE OptNoLog MATERIALIZED VIEW create_mv_target MatViewOptions AS SelectStmt opt_with_data
 				{
 					CreateTableAsStmt *ctas = makeNode(CreateTableAsStmt);
-					ctas->query = $7;
+					ctas->query = $8;
 					ctas->into = $5;
 					ctas->relkind = OBJECT_MATVIEW;
 					ctas->is_select_into = false;
 					ctas->if_not_exists = false;
 					/* cram additional flags into the IntoClause */
 					$5->rel->relpersistence = $2;
-					$5->skipData = !($8);
+					$5->skipData = !($9);
 					$$ = (Node *) ctas;
 				}
 		| CREATE OptNoLog MATERIALIZED VIEW IF_P NOT EXISTS create_mv_target AS SelectStmt opt_with_data
@@ -3966,6 +3966,31 @@ OptNoLog:	UNLOGGED					{ $$ = RELPERSISTENCE_UNLOGGED; }
 			| /*EMPTY*/					{ $$ = RELPERSISTENCE_PERMANENT; }
 		;
 
+MatViewOptions:
+    /*EMPTY*/
+|   MatViewOptions MatViewOption
+    {
+		/* 
+        $$ = $1;
+		if ($2->backup != NULL)
+            $$->backup = $2->backup;
+        if ($2->auto_refresh != NULL)
+            $$->auto_refresh = $2->auto_refresh;
+		*/
+    }
+;
+
+MatViewOption:
+    BACKUP YES_P { }
+|   BACKUP NO { }
+|   AUTO REFRESH YES_P { }
+|   AUTO REFRESH NO { }
+|	DISTSTYLE AUTO {}
+|	DISTSTYLE EVEN {}
+|	DISTSTYLE KEY {}
+|	DISTSTYLE ALL {}
+|	SORTKEY '(' columnList ')' {}
+;
 
 /*****************************************************************************
  *
@@ -14638,6 +14663,8 @@ unreserved_keyword:
 			| AT
 			| ATTACH
 			| ATTRIBUTE
+			| AUTO
+			| BACKUP
 			| BACKWARD
 			| BEFORE
 			| BEGIN_P
@@ -14688,6 +14715,7 @@ unreserved_keyword:
 			| DICTIONARY
 			| DISABLE_P
 			| DISCARD
+			| DISTSTYLE
 			| DOCUMENT_P
 			| DOMAIN_P
 			| DOUBLE_P
@@ -14698,6 +14726,7 @@ unreserved_keyword:
 			| ENCRYPTED
 			| ENUM_P
 			| ESCAPE
+			| EVEN
 			| EVENT
 			| EXCLUDE
 			| EXCLUDING
@@ -14849,6 +14878,7 @@ unreserved_keyword:
 			| SIMPLE
 			| SKIP
 			| SNAPSHOT
+			| SORTKEY
 			| SQL_P
 			| STABLE
 			| STANDALONE_P
